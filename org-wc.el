@@ -124,12 +124,10 @@ LaTeX macros are counted as 1 word. "
   "Return the number of words between BEG and END."
   (let ((wc 0)
         subtreecount
-        (latex-macro-regexp "\\\\[A-Za-z]+\\(\\[[^]]*\\]\\|\\){\\([^}]*\\)}"))
+        (latex-macro-regexp "\\\\[A-Za-z]+\\(\\[[^]]*\\]\\|\\){\\([^}]*\\)}")
+	(drawer-end-regexp "^[ \t]*:END:[ \t]*$"))
     (save-excursion
       (goto-char beg)
-      ;; Handle the case where we start in a drawer
-      (when (org-at-drawer-p)
-        (org-end-of-meta-data t))
       (while (< (point) end)
         (cond
          ;; Handle headlines and subtrees
@@ -159,7 +157,16 @@ LaTeX macros are counted as 1 word. "
           (org-wc--goto-char (point-at-eol) end))
          ;; Ignore drawers.
          ((org-at-drawer-p)
-          (org-end-of-meta-data t))
+	  (beginning-of-line 1)
+	  (cond
+	   ((looking-at drawer-end-regexp)        ; If BEG was inside drawer,
+	    (setq wc 0)                           ; discard words
+	    (forward-line))                       ; and exit drawer,
+	   ((re-search-forward drawer-end-regexp
+			       end t)             ; else find end of drawer
+	    (forward-line))                       ; and exit drawer, or signal error
+	   (t (user-error "Unclosed drawer at line %d"
+			  (line-number-at-pos nil t)))))
          ;; Ignore all other #+ lines
          ((looking-at "#+")
           (org-wc--goto-char (point-at-eol) end))
